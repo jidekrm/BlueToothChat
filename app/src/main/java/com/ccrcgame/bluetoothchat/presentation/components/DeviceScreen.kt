@@ -23,13 +23,15 @@ import com.ccrcgame.bluetoothchat.presentation.BlueToothUIState
 fun DeviceScreen(
     state: BlueToothUIState,
     onStartScan: () -> Unit,
-    onStopScan: () -> Unit
+    onStopScan: () -> Unit,
+    onStartServer: () -> Unit,
+    onDeviceClick: (BlueToothDevice) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         BlueToothDeviceList(
             pairedDevices = state.pairedDevices,
             scannedDevices = state.scannedDevices,
-            onClick = {},
+            onClick = onDeviceClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
@@ -43,6 +45,10 @@ fun DeviceScreen(
             }
             Button(onClick = onStopScan) {
                 Text(text = "Stop Scan")
+            }
+
+            Button(onClick = onStartServer) {
+                Text(text = "Start Server")
             }
 
         }
