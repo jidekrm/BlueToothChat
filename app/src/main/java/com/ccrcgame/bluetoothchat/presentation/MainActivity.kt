@@ -10,21 +10,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ccrcgame.bluetoothchat.presentation.components.ChatScreen
 import com.ccrcgame.bluetoothchat.presentation.components.DeviceScreen
 import com.ccrcgame.bluetoothchat.ui.theme.BlueToothChatTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -40,7 +38,7 @@ class MainActivity : ComponentActivity() {
         blueToothManager?.adapter
     }
 
-    private val isBlueToothEnabled : Boolean
+    private val isBlueToothEnabled: Boolean
         get() = bluetoothAdapter?.isEnabled == false
 
 
@@ -49,12 +47,12 @@ class MainActivity : ComponentActivity() {
 
         val enableBlueToothLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()
-        ){
+        ) {
             /* nOT nEEDED */
         }
         val permissionLauncher = registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
-        ){perms ->
+        ) { perms ->
             val canEnableBlueTooth = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 perms[android.Manifest.permission.BLUETOOTH_CONNECT] ?: true
             } else true
@@ -63,14 +61,14 @@ class MainActivity : ComponentActivity() {
                 enableBlueToothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
             }
         }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S){
-                permissionLauncher.launch(
-                    arrayOf(
-                        android.Manifest.permission.BLUETOOTH_SCAN,
-                        android.Manifest.permission.BLUETOOTH_CONNECT,
-                    )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissionLauncher.launch(
+                arrayOf(
+                    android.Manifest.permission.BLUETOOTH_SCAN,
+                    android.Manifest.permission.BLUETOOTH_CONNECT,
                 )
-            }
+            )
+        }
 
 
         setContent {
@@ -79,32 +77,43 @@ class MainActivity : ComponentActivity() {
                 val viewModel = hiltViewModel<BlueToothViewModel>()
                 val state by viewModel.state.collectAsState()
 
-                LaunchedEffect(key1 = state.errorMessage ){
+                LaunchedEffect(key1 = state.errorMessage) {
                     state.errorMessage?.let { message ->
                         Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
 
                     }
                 }
 
-                LaunchedEffect(key1 = state.isConnected ){
-                    if (state.isConnected){
-                        Toast.makeText(applicationContext, "You are Connected!", Toast.LENGTH_LONG).show()
+                LaunchedEffect(key1 = state.isConnected) {
+                    if (state.isConnected) {
+                        Toast.makeText(applicationContext, "You are Connected!", Toast.LENGTH_LONG)
+                            .show()
                     }
                 }
 
-                Surface( color = MaterialTheme.colorScheme.background) {
-                    when{
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    when {
                         state.isConnecting -> {
-                            Column(modifier = Modifier.fillMaxSize(),
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center){
+                                verticalArrangement = Arrangement.Center
+                            ) {
                                 CircularProgressIndicator()
                                 Text(text = "Connecting...")
                             }
 
                         }
 
-                        else  -> {
+                        state.isConnected -> {
+                            ChatScreen(
+                                state = state,
+                                onDisconnect = viewModel::disconnectFromDevice,
+                                onSendMessage = viewModel::sendMessage
+                            )
+                        }
+
+                        else -> {
 
                             DeviceScreen(
                                 state = state,

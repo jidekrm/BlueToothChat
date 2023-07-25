@@ -3,7 +3,6 @@ package com.ccrcgame.bluetoothchat.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ccrcgame.bluetoothchat.domain.chat.BlueToothController
-import com.ccrcgame.bluetoothchat.domain.chat.BlueToothDevice
 import com.ccrcgame.bluetoothchat.domain.chat.BlueToothDeviceDomain
 import com.ccrcgame.bluetoothchat.domain.chat.ConnectionResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +16,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -30,19 +30,24 @@ class BlueToothViewModel @Inject constructor(
         blueToothController.pairedDevices,
         _state
     ) { scannedDevices, pairedDevices, state ->
-        state.copy(scannedDevices = scannedDevices, pairedDevices = pairedDevices)
+        state.copy(
+            scannedDevices = scannedDevices,
+            pairedDevices = pairedDevices,
+            messages = if (state.isConnected) state.messages else emptyList()
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), _state.value)
 
     private var deviceConnectionJob: Job? = null
+
     init {
 
-        blueToothController.isConnected.onEach {isConnected ->
+        blueToothController.isConnected.onEach { isConnected ->
             _state.update {
                 it.copy(isConnected = isConnected)
             }
         }.launchIn(viewModelScope)
 
-        blueToothController.errors.onEach {error ->
+        blueToothController.errors.onEach { error ->
             _state.update {
                 it.copy(errorMessage = error)
             }
@@ -53,12 +58,12 @@ class BlueToothViewModel @Inject constructor(
         _state.update {
             it.copy(isConnecting = true)
         }
-      deviceConnectionJob =  blueToothController.connectToDevice(device)
+        deviceConnectionJob = blueToothController.connectToDevice(device)
             .listen()
 
     }
 
-    fun disconnectFromDevice(){
+    fun disconnectFromDevice() {
         deviceConnectionJob?.cancel()
         blueToothController.closeConnection()
         _state.update {
@@ -66,12 +71,23 @@ class BlueToothViewModel @Inject constructor(
         }
     }
 
-    fun waitForIncomingConnections(){
+    fun waitForIncomingConnections() {
         _state.update {
             it.copy(isConnecting = true)
         }
 
-        deviceConnectionJob =  blueToothController.startBlueToothServer().listen()
+        deviceConnectionJob = blueToothController.startBlueToothServer().listen()
+    }
+
+    fun sendMessage(message: String) {
+        viewModelScope.launch {
+            val bluetoothMessage = blueToothController.trySendMessage(message)
+            if (bluetoothMessage != null){
+                _state.update {
+                    it.copy(messages = it.messages + bluetoothMessage)
+                }
+            }
+        }
     }
     fun startScan() {
         blueToothController.startDiscovery()
@@ -82,23 +98,33 @@ class BlueToothViewModel @Inject constructor(
     }
 
     private fun Flow<ConnectionResult>.listen(): Job {
-        return onEach {result ->
+        return onEach { result ->
             when (result) {
                 is ConnectionResult.ConnectionEstablished -> {
                     _state.update {
-                        it.copy(isConnected = true,  isConnecting = false, errorMessage = null)
+                        it.copy(isConnected = true, isConnecting = false, errorMessage = null)
                     }
                 }
+                is ConnectionResult.TransferSucceeded -> {
+                    _state.update {
+                        it.copy(messages = it.messages + result.message)
+                    }
+                }
+
                 is ConnectionResult.Error -> {
                     _state.update {
-                        it.copy(isConnected = false,  isConnecting = false, errorMessage = result.message)
+                        it.copy(
+                            isConnected = false,
+                            isConnecting = false,
+                            errorMessage = result.message
+                        )
                     }
                 }
             }
 
-        }.catch {throwable ->
+        }.catch { throwable ->
             _state.update {
-                it.copy(isConnected = false,  isConnecting = false)
+                it.copy(isConnected = false, isConnecting = false)
             }
 
         }.launchIn(viewModelScope)
